@@ -58,4 +58,17 @@ flask_session/
 
 # Environment variables
 .env
+.env.local
+.env.*.local
+.env.production
 .flaskenv
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# SSL certificates
+ssl/
+
+# Additional Logs
+logs/

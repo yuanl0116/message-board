@@ -5,6 +5,15 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime
+import os
+
+# 加载环境变量
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # 如果没有安装python-dotenv，跳过
+    pass
 
 # 创建Flask应用实例
 app = Flask(__name__)
@@ -12,11 +21,17 @@ app = Flask(__name__)
 # 启用CORS支持，允许前端跨域访问
 CORS(app)
 
-# 数据库配置
-# 为了测试方便，使用SQLite数据库（生产环境可改为MySQL）
-# MySQL配置示例：mysql+pymysql://用户名:密码@主机地址:端口/数据库名
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///messageboard.db'
+# 数据库配置 - 支持环境变量
+# 优先使用环境变量，如果没有则使用默认的SQLite数据库
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+    'DATABASE_URL', 
+    'sqlite:///messageboard.db'
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# 生产环境配置
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['DEBUG'] = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
 
 # 初始化数据库
 db = SQLAlchemy(app)
@@ -108,8 +123,12 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     
-    # 启动Flask应用
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    # 启动Flask应用 - 支持环境变量配置
+    port = int(os.getenv('PORT', 5001))
+    host = os.getenv('HOST', '0.0.0.0')
+    debug = os.getenv('FLASK_DEBUG', 'True').lower() == 'true'
+    
+    app.run(debug=debug, host=host, port=port)
 
 # 初始化数据库的命令：
 # 1. 首先确保MySQL服务已启动
