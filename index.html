@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线留言板</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #messageInput {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        #messageInput:focus {
+            border-color: #007bff;
+        }
+        #submitBtn {
+            padding: 12px 24px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #submitBtn:hover {
+            background-color: #0056b3;
+        }
+        #submitBtn:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .messages-section {
+            margin-top: 20px;
+        }
+        .messages-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .messages-count {
+            color: #666;
+            font-size: 14px;
+        }
+        #refreshBtn {
+            padding: 8px 16px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #refreshBtn:hover {
+            background-color: #1e7e34;
+        }
+        #messagesList {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .message-item {
+            background-color: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .message-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .message-content {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        .message-time {
+            font-size: 12px;
+            color: #666;
+            text-align: right;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 20px;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 10px 0;
+            border: 1px solid #f5c6cb;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 10px 0;
+            border: 1px solid #c3e6cb;
+        }
+        .empty-state {
+            text-align: center;
+            color: #666;
+            padding: 40px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 在线留言板</h1>
+        
+        <!-- 输入区域 -->
+        <div class="input-section">
+            <div class="input-group">
+                <input type="text" id="messageInput" placeholder="请输入您的留言..." maxlength="500">
+                <button id="submitBtn">提交留言</button>
+            </div>
+            <div id="statusMessage"></div>
+        </div>
+        
+        <!-- 留言列表区域 -->
+        <div class="messages-section">
+            <div class="messages-header">
+                <h3>💬 留言列表</h3>
+                <div>
+                    <span id="messagesCount" class="messages-count">加载中...</span>
+                    <button id="refreshBtn">刷新</button>
+                </div>
+            </div>
+            <ul id="messagesList">
+                <li class="loading">正在加载留言...</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // API 基础URL
+        const API_BASE_URL = 'http://localhost:5001';
+        
+        // DOM 元素引用
+        const messageInput = document.getElementById('messageInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const messagesList = document.getElementById('messagesList');
+        const messagesCount = document.getElementById('messagesCount');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const statusMessage = document.getElementById('statusMessage');
+        
+        // 显示状态消息
+        function showStatus(message, type = 'info') {
+            statusMessage.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                statusMessage.innerHTML = '';
+            }, 3000);
+        }
+        
+        // 获取所有留言
+        async function fetchMessages() {
+            try {
+                messagesList.innerHTML = '<li class="loading">正在加载留言...</li>';
+                messagesCount.textContent = '加载中...';
+                
+                const response = await fetch(`${API_BASE_URL}/get`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderMessages(data.data);
+                    messagesCount.textContent = `共 ${data.count} 条留言`;
+                } else {
+                    throw new Error(data.error || '获取留言失败');
+                }
+            } catch (error) {
+                console.error('获取留言失败:', error);
+                messagesList.innerHTML = `<li class="error">获取留言失败: ${error.message}</li>`;
+                messagesCount.textContent = '获取失败';
+                showStatus(`获取留言失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 渲染留言列表
+        function renderMessages(messages) {
+            if (messages.length === 0) {
+                messagesList.innerHTML = '<li class="empty-state">暂无留言，快来发表第一条留言吧！</li>';
+                return;
+            }
+            
+            messagesList.innerHTML = messages.map(message => `
+                <li class="message-item">
+                    <div class="message-content">${escapeHtml(message.content)}</div>
+                    <div class="message-time">发表于: ${message.timestamp}</div>
+                </li>
+            `).join('');
+        }
+        
+        // HTML转义函数，防止XSS攻击
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 提交留言
+        async function submitMessage() {
+            const content = messageInput.value.trim();
+            
+            if (!content) {
+                showStatus('请输入留言内容', 'error');
+                messageInput.focus();
+                return;
+            }
+            
+            try {
+                // 禁用提交按钮，防止重复提交
+                submitBtn.disabled = true;
+                submitBtn.textContent = '提交中...';
+                
+                const response = await fetch(`${API_BASE_URL}/add`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: content })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 清空输入框
+                    messageInput.value = '';
+                    showStatus('留言提交成功！', 'success');
+                    
+                    // 刷新留言列表
+                    await fetchMessages();
+                } else {
+                    throw new Error(data.error || '提交留言失败');
+                }
+            } catch (error) {
+                console.error('提交留言失败:', error);
+                showStatus(`提交留言失败: ${error.message}`, 'error');
+            } finally {
+                // 恢复提交按钮
+                submitBtn.disabled = false;
+                submitBtn.textContent = '提交留言';
+            }
+        }
+        
+        // 事件监听器
+        submitBtn.addEventListener('click', submitMessage);
+        refreshBtn.addEventListener('click', fetchMessages);
+        
+        // 回车键提交
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !submitBtn.disabled) {
+                submitMessage();
+            }
+        });
+        
+        // 页面加载完成后获取留言列表
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchMessages();
+        });
+        
+        // 定期刷新留言列表（可选）
+        // setInterval(fetchMessages, 30000); // 每30秒刷新一次
+    </script>
+</body>
+</html>
